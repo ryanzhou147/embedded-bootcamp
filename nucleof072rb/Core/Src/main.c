@@ -19,6 +19,8 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "spi.h"
+#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 
@@ -56,6 +58,22 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+uint16_t Read_ADC(uint8_t channel) {
+    uint8_t transmit_data[3];
+    uint8_t receive_data[3];
+
+    transmit_data[0] = 0x01;                         	// start bit
+    transmit_data[1] = 0x80 | (channel << 4);          // single-ended + channel
+    transmit_data[2] = 0x00;							//receive leftover bits
+
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);  // CS low to begin transmission from master to slave
+    HAL_SPI_TransmitReceive(&hspi1, transmit_data, receive_data, 3, HAL_MAX_DELAY);	//transmit and receive data
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);    // CS high to stop transmission from master to slave
+
+    return ((receive_data[1] & 0x03) << 8) | receive_data[2];          // 10-bit result
+}
+
+
 /* USER CODE END 0 */
 
 /**
@@ -87,8 +105,10 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART2_UART_Init();
+  MX_SPI1_Init();
+  MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -96,7 +116,14 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
+	uint16_t adc_value = Read_ADC(0);  // read channel 0
 
+	// Scale 0–1023 to 3200–6400 (1–2ms pulse)
+	uint16_t pwm_value = 3200 + (adc_value * (3200)) / 1023;
+
+	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, pwm_value);
+
+	HAL_Delay(10);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
