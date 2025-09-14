@@ -58,7 +58,12 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-uint16_t Read_ADC(uint8_t channel) {
+uint8_t transmit_data[3];
+uint8_t receive_data[3];
+
+const int DATA_SIZE = 3;
+
+uint16_t Read_ADC(void) {
 
 	HAL_StatusTypeDef status;
 
@@ -95,17 +100,20 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-  uint8_t transmit_data[3];
-  uint8_t receive_data[3];
+
+  uint8_t channel = 0;
 
   transmit_data[0] = 0x01;                         	// start bit
   transmit_data[1] = 0x80 | (channel << 4);          // single-ended + channel
   transmit_data[2] = 0x00;							//receive leftover bits
 
-  const int DATA_SIZE = 3;
-
   uint16_t adc_value;
   uint16_t pwm_value;
+
+  float scale_min = 3200.0f;    // corresponds to 1 ms pulse
+  float scale_range = 3200.0f;  // corresponds to 1 ms range
+  float adc_max = 1023.0f;      // max ADC value
+
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -129,10 +137,9 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-	adc_value = Read_ADC(0);  // read channel 0
+	adc_value = Read_ADC();
 
-	// Scale 0–1023 to 3200–6400 (1–2ms pulse)
-	pwm_value = 3200 + (adc_value * (3200)) / 1023;
+	pwm_value = (uint16_t)(scale_min + (adc_value * scale_range) / adc_max);	// Scale 0–1023 to 3200–6400 (1–2ms pulse)
 
 	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, pwm_value);
 
