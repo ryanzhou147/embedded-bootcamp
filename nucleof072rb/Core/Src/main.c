@@ -59,16 +59,19 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN 0 */
 
 uint16_t Read_ADC(uint8_t channel) {
-    uint8_t transmit_data[3];
-    uint8_t receive_data[3];
 
-    transmit_data[0] = 0x01;                         	// start bit
-    transmit_data[1] = 0x80 | (channel << 4);          // single-ended + channel
-    transmit_data[2] = 0x00;							//receive leftover bits
+	HAL_StatusTypeDef status;
+
 
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);  // CS low to begin transmission from master to slave
-    HAL_SPI_TransmitReceive(&hspi1, transmit_data, receive_data, 3, HAL_MAX_DELAY);	//transmit and receive data
+    status = HAL_SPI_TransmitReceive(&hspi1, transmit_data, receive_data, DATA_SIZE, HAL_MAX_DELAY);	//transmit and receive data
+    if (status == HAL_OK) {
+    	//everything works, continue with code
+    } else {
+    	printf("SPI Transmission failed with error code: %d\n", status);
+    }
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);    // CS high to stop transmission from master to slave
+
 
     return ((receive_data[1] & 0x03) << 8) | receive_data[2];          // 10-bit result
 }
@@ -92,7 +95,17 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
+  uint8_t transmit_data[3];
+  uint8_t receive_data[3];
 
+  transmit_data[0] = 0x01;                         	// start bit
+  transmit_data[1] = 0x80 | (channel << 4);          // single-ended + channel
+  transmit_data[2] = 0x00;							//receive leftover bits
+
+  const int DATA_SIZE = 3;
+
+  uint16_t adc_value;
+  uint16_t pwm_value;
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -116,10 +129,10 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-	uint16_t adc_value = Read_ADC(0);  // read channel 0
+	adc_value = Read_ADC(0);  // read channel 0
 
 	// Scale 0–1023 to 3200–6400 (1–2ms pulse)
-	uint16_t pwm_value = 3200 + (adc_value * (3200)) / 1023;
+	pwm_value = 3200 + (adc_value * (3200)) / 1023;
 
 	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, pwm_value);
 
